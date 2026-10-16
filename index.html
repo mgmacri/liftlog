@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LiftLog</title>
+  <meta name="theme-color" content="#121212">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="LiftLog">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="icon" href="icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top"><span class="brand">LiftLog</span><span id="sync" aria-live="polite"></span></header>
+  <main id="app"></main>
+  <div id="timer" hidden role="timer">
+    <span class="lbl">Rest</span><span class="t">0:00</span>
+    <button data-a="tminus" aria-label="30 seconds less">−30</button>
+    <button data-a="tplus" aria-label="30 seconds more">+30</button>
+    <button data-a="tskip">Skip</button>
+  </div>
+  <nav aria-label="Main">
+    <button data-a="nav" data-v="today">Today</button>
+    <button data-a="nav" data-v="history">History</button>
+    <button data-a="nav" data-v="insights">Insights</button>
+    <button data-a="nav" data-v="settings">Settings</button>
+  </nav>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
