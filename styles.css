@@ -84,3 +84,4 @@ table.hist { width: 100%; border-collapse: collapse; font-size: 14px; margin-top
 .grid2, .grid3 { display: grid; gap: 8px; } .grid2 { grid-template-columns: 1fr 1fr; } .grid3 { grid-template-columns: 1fr 1fr 1fr; }
 .full { grid-column: 1 / -1; }
 .filebtn { display: inline-flex; align-items: center; justify-content: center; flex-direction: row; margin: 0; color: var(--text); font-size: 14px; }
+.toplinks { display: flex; align-items: center; gap: 12px; } .toplinks a { color: var(--muted); font-size: 14px; text-decoration: none; }
