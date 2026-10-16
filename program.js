@@ -3,12 +3,12 @@
 
 export const PROGRAM = {
   name: 'Recomp 12-week',
-  startDate: '2026-10-19', // Monday of week 1
+  startDate: null, // day 1 of week 1; null = the first day the app is opened. Change it in Settings.
   bar: 45,
   plates: [45, 25, 10, 5],
 
-  // JS getDay(): 0 Sun .. 6 Sat. null = rest day.
-  schedule: { 0: null, 1: 'upperA', 2: 'lowerA', 3: null, 4: 'push', 5: 'pull', 6: 'lowerB' },
+  // 7-day cycle counted from the start date, whatever weekday that is. null = rest day.
+  cycle: ['upperA', 'lowerA', null, 'push', 'pull', 'lowerB', null],
 
   // Main lifts. sb = squat and bench (same numbers), dl = deadlift. [sets, reps, weight]
   weeks: [

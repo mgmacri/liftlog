@@ -6,15 +6,18 @@ const GH_KEY = 'liftlog.gh'; // kept separate so the token is never written to t
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+const OLD_DEFAULT_START = '2026-10-19'; // fixed start date in the first release
 const blank = () => ({
-  version: 1, updatedAt: 0, startDate: PROGRAM.startDate,
+  version: 1, updatedAt: 0, startDate: PROGRAM.startDate || new Date().toLocaleDateString('en-CA'),
   workouts: [], deleted: [], offsets: {}, acc: {}, dismissed: [], active: null,
   settings: { restMain: 180, restFail: 300, restAcc: 90, bar: PROGRAM.bar, plates: [...PROGRAM.plates] },
 });
 function normalize(s) {
   const b = blank();
   if (!s || s.version !== 1) return b;
-  return { ...b, ...s, settings: { ...b.settings, ...(s.settings || {}) } };
+  const out = { ...b, ...s, settings: { ...b.settings, ...(s.settings || {}) } };
+  if (out.startDate === OLD_DEFAULT_START && !out.workouts.length && !out.active) out.startDate = b.startDate;
+  return out;
 }
 function readLS(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
 function writeLS(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* storage blocked */ } }
@@ -24,7 +27,6 @@ let gh = { branch: 'main', path: 'liftlog.json', ...(readLS(GH_KEY) || {}) };
 let view = 'today';
 let syncMsg = '';
 let flash = [];
-let pick = null; // {session, week} on the Today screen
 const openWarm = new Set();
 
 function save(push = false) {
@@ -42,6 +44,7 @@ const fmtDate = (s) => parseD(s).toLocaleDateString(undefined, { weekday: 'short
 const NW = PROGRAM.weeks.length;
 const weekIndexFor = (d) => Math.floor(dayDiff(state.startDate, d) / 7);
 const clampWeek = (i) => Math.max(0, Math.min(NW - 1, i));
+const sessionFor = (d) => { const n = dayDiff(state.startDate, d); return n < 0 ? null : PROGRAM.cycle[n % PROGRAM.cycle.length]; };
 const blockOf = (wi) => Math.floor(wi / 4);
 const mmss = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -290,7 +293,7 @@ function suggestions() {
 function adherence() {
   const t = todayStr();
   let sched = 0;
-  for (let d = state.startDate; d < t; d = addDays(d, 1)) if (PROGRAM.schedule[parseD(d).getDay()]) sched++;
+  for (let d = state.startDate; d < t; d = addDays(d, 1)) if (sessionFor(d)) sched++;
   const done = new Set(state.workouts.filter((w) => w.date >= state.startDate && w.date < t).map((w) => w.date)).size;
   return { sched, done };
 }
@@ -302,30 +305,31 @@ const fmtRir = (r) => (r >= 4 ? '4+' : String(r));
 function todayView() {
   const d = todayStr();
   const wi = weekIndexFor(d);
-  const sk = PROGRAM.schedule[parseD(d).getDay()];
+  const sk = sessionFor(d);
   let status;
-  if (wi < 0) { const n = dayDiff(d, state.startDate); status = `Program starts ${fmtDate(state.startDate)}, ${n} day${n === 1 ? '' : 's'} out. You can run week 1 early.`; }
+  if (wi < 0) { const n = dayDiff(d, state.startDate); status = `Program starts ${fmtDate(state.startDate)}, ${n} day${n === 1 ? '' : 's'} out.`; }
   else if (wi >= NW) status = '12 weeks done. Run the week 12 test, update the table in program.js, and reset the start date.';
-  else { const w = PROGRAM.weeks[wi]; status = `Week ${wi + 1} of ${NW} · Block ${blockOf(wi) + 1}${w.deload ? ' · Deload' : ''}${w.test ? ' · Test week' : ''}`; }
-  if (!pick) pick = { session: sk || nextSession(d), week: clampWeek(wi) };
-  const s = PROGRAM.sessions[pick.session];
+  else { const w = PROGRAM.weeks[wi]; status = `Week ${wi + 1} of ${NW} · Day ${(dayDiff(state.startDate, d) % 7) + 1} · Block ${blockOf(wi) + 1}${w.deload ? ' · Deload' : ''}${w.test ? ' · Test week' : ''}`; }
   const doneToday = state.workouts.filter((w) => w.date === d);
+  const done = sk && doneToday.some((w) => w.session === sk);
 
   let html = '';
   if (flash.length) html += card(`<h2>Saved</h2><ul>${flash.map((f) => `<li>${esc(f)}</li>`).join('')}</ul><button class="ghost sm" data-a="clearflash">Dismiss</button>`, 'flash');
   html += card(`<p class="eyebrow">${esc(fmtDate(d))}</p><h1>${sk ? esc(PROGRAM.sessions[sk].name) : 'Rest day'}</h1><p class="muted">${esc(status)}</p>${doneToday.length ? `<p class="good">Logged today: ${doneToday.map((w) => esc(PROGRAM.sessions[w.session]?.name)).join(', ')}</p>` : ''}`);
-  html += card(`
-    <div class="pickrow">
-      <label>Session<select data-c="pickSession">${Object.entries(PROGRAM.sessions).map(([k, v]) => `<option value="${k}" ${k === pick.session ? 'selected' : ''}>${esc(v.name)}</option>`).join('')}</select></label>
-      <label>Week<select data-c="pickWeek">${PROGRAM.weeks.map((w, i) => `<option value="${i}" ${i === pick.week ? 'selected' : ''}>${i + 1}${w.deload ? ' (deload)' : w.test ? ' (test)' : ''}</option>`).join('')}</select></label>
-    </div>
-    <ol class="preview">${s.exercises.map((def) => `<li><span>${esc(def.name)}</span><span class="muted">${esc(rxText(def, pick.week))}</span></li>`).join('')}</ol>
+  if (sk && !done) {
+    const s = PROGRAM.sessions[sk]; const wk = clampWeek(wi);
+    html += card(`
+    <ol class="preview">${s.exercises.map((def) => `<li><span>${esc(def.name)}</span><span class="muted">${esc(rxText(def, wk))}</span></li>`).join('')}</ol>
     <button class="primary" data-a="start">Start ${esc(s.name)}</button>`);
+  } else {
+    const nx = nextSession(d);
+    if (nx) html += card(`<p class="muted">Next: ${esc(PROGRAM.sessions[nx.session].name)} on ${esc(fmtDate(nx.date))}.</p>`);
+  }
   return html;
 }
 function nextSession(d) {
-  for (let i = 1; i <= 7; i++) { const k = PROGRAM.schedule[parseD(addDays(d, i)).getDay()]; if (k) return k; }
-  return Object.keys(PROGRAM.sessions)[0];
+  for (let i = 1; i <= PROGRAM.cycle.length; i++) { const date = addDays(d, i); const k = sessionFor(date); if (k) return { session: k, date }; }
+  return null;
 }
 
 function warmups(ex) {
@@ -433,7 +437,7 @@ function settingsView() {
     return `<td><div class="stepper"><button class="ghost sm" data-a="off" data-l="${l}" data-b="${b}" data-d="-1" aria-label="${LIFT_NAME[l]} block ${b + 1} minus">−</button><span>${v > 0 ? '+' : ''}${v}</span><button class="ghost sm" data-a="off" data-l="${l}" data-b="${b}" data-d="1" aria-label="${LIFT_NAME[l]} block ${b + 1} plus">+</button></div></td>`;
   }).join('')}</tr>`).join('');
   return `<h2 class="pagetitle">Settings</h2>
-  ${card(`<h3>Program</h3><label>Week 1 starts (Monday)<input type="date" data-c="startDate" value="${esc(state.startDate)}"></label>
+  ${card(`<h3>Program</h3><label>Day 1 of week 1<input type="date" data-c="startDate" value="${esc(state.startDate)}"></label>
     <h4>Block load offsets (lb)</h4><p class="muted small">Added to every week of that block. Apply buttons in Insights change these.</p>
     <table class="hist"><thead><tr><th></th><th>B1</th><th>B2</th><th>B3</th></tr></thead><tbody>${offsetRows}</tbody></table>`)}
   ${card(`<h3>Rest timer (seconds)</h3><div class="grid3">
@@ -505,7 +509,6 @@ function finishWorkout() {
   if (!flash.length) flash.push('Workout logged.');
   state.workouts.push(w);
   state.active = null;
-  pick = null;
   timer = null; drawTimer();
   save(true);
   view = 'today';
@@ -517,7 +520,9 @@ const act = {
   nav: ({ v }) => { view = v; render(); window.scrollTo(0, 0); },
   start: () => {
     const d = todayStr();
-    state.active = newWorkout(pick.session, d, pick.week);
+    const sk = sessionFor(d);
+    if (!sk) return;
+    state.active = newWorkout(sk, d, clampWeek(weekIndexFor(d)));
     flash = [];
     openWarm.clear();
     save();
@@ -593,9 +598,7 @@ document.addEventListener('change', async (e) => {
   const t = e.target.closest('[data-c]');
   if (!t) return;
   const c = t.dataset.c; const v = t.value;
-  if (c === 'pickSession') { pick.session = v; render(); return; }
-  if (c === 'pickWeek') { pick.week = +v; render(); return; }
-  if (c === 'startDate' && v) { state.startDate = v; pick = null; save(true); return; }
+  if (c === 'startDate' && v) { state.startDate = v; save(true); return; }
   if (['restMain', 'restFail', 'restAcc'].includes(c)) { const n = parseInt(v, 10); if (n > 0) { state.settings[c] = n; save(true); } return; }
   if (c === 'plates') {
     const p = v.split(',').map((x) => Number(x.trim())).filter((x) => x > 0);
@@ -623,7 +626,7 @@ document.addEventListener('submit', (e) => {
 });
 
 // Resume a running timer view after backgrounding; keep the date fresh past midnight.
-document.addEventListener('visibilitychange', () => { if (!document.hidden) { drawTimer(); if (!state.active && view === 'today') { pick = null; render(); } } });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { drawTimer(); if (!state.active && view === 'today') render(); } });
 
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 render();

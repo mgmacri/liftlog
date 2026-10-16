@@ -40,7 +40,6 @@ p { margin: 6px 0; }
 .chip.on { background: var(--text); color: var(--bg); border-color: var(--text); }
 .tag { font-size: 13px; color: var(--warn); }
 
-.pickrow { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-bottom: 8px; }
 label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); margin: 6px 0; }
 input, select { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); padding: 0 10px; font-size: 16px; color: var(--text); }
 .preview { list-style: none; padding: 0; margin: 8px 0 14px; }
