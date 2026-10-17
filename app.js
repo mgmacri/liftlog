@@ -6,9 +6,8 @@ const GH_KEY = 'liftlog.gh'; // kept separate so the token is never written to t
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
-const OLD_DEFAULT_START = '2026-10-19'; // fixed start date in the first release
 const blank = () => ({
-  version: 1, updatedAt: 0, startDate: PROGRAM.startDate || new Date().toLocaleDateString('en-CA'),
+  version: 1, updatedAt: 0, startDate: PROGRAM.startDate, startSet: false,
   workouts: [], deleted: [], offsets: {}, acc: {}, dismissed: [], active: null,
   settings: { restMain: 180, restFail: 300, restAcc: 90, bar: PROGRAM.bar, plates: [...PROGRAM.plates] },
 });
@@ -16,7 +15,7 @@ function normalize(s) {
   const b = blank();
   if (!s || s.version !== 1) return b;
   const out = { ...b, ...s, settings: { ...b.settings, ...(s.settings || {}) } };
-  if (out.startDate === OLD_DEFAULT_START && !out.workouts.length && !out.active) out.startDate = b.startDate;
+  if (!out.startSet) out.startDate = PROGRAM.startDate; // program.js wins until a date is picked in Settings
   return out;
 }
 function readLS(k) { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } }
@@ -598,7 +597,7 @@ document.addEventListener('change', async (e) => {
   const t = e.target.closest('[data-c]');
   if (!t) return;
   const c = t.dataset.c; const v = t.value;
-  if (c === 'startDate' && v) { state.startDate = v; save(true); return; }
+  if (c === 'startDate' && v) { state.startDate = v; state.startSet = true; save(true); return; }
   if (['restMain', 'restFail', 'restAcc'].includes(c)) { const n = parseInt(v, 10); if (n > 0) { state.settings[c] = n; save(true); } return; }
   if (c === 'plates') {
     const p = v.split(',').map((x) => Number(x.trim())).filter((x) => x > 0);

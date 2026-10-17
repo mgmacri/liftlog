@@ -44,4 +44,4 @@ Each exercise logs last-set RIR, and failed sets ask why (too heavy, fatigue, po
 - 2+ failed loading sessions in a block → −10 lb next block, unless most were recovery reasons, in which case it says to hold the load.
 - "−10 lb today" on a main lift is the in-session drop for a first set that is too hard.
 
-The start date defaults to the first day the app is opened; change it in Settings. Edit `program.js` to change exercises, ranges, increments or the weeks table.
+The start date is set in `program.js` (currently Fri Oct 16, 2026); picking a date in Settings overrides it on that device. Edit `program.js` to change exercises, ranges, increments or the weeks table.

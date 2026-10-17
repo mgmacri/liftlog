@@ -3,7 +3,7 @@
 
 export const PROGRAM = {
   name: 'Recomp 12-week',
-  startDate: null, // day 1 of week 1; null = the first day the app is opened. Change it in Settings.
+  startDate: '2026-10-16', // day 1 of week 1 (any weekday). Used unless a date is picked in Settings.
   bar: 45,
   plates: [45, 25, 10, 5],
 
