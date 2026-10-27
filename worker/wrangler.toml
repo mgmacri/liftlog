@@ -1,0 +1,12 @@
+name = "liftlog-oauth"
+main = "index.js"
+compatibility_date = "2024-11-01"
+workers_dev = true
+
+# Public, non-secret settings. Edit these two values for your setup.
+[vars]
+GH_CLIENT_ID = "YOUR_OAUTH_APP_CLIENT_ID"
+ALLOWED_ORIGIN = "https://mgmacri.github.io"
+
+# The client SECRET is not stored here. Set it once with:
+#   wrangler secret put GH_CLIENT_SECRET

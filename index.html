@@ -14,7 +14,7 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="top"><span class="brand">LiftLog</span><span class="toplinks"><span id="sync" aria-live="polite"></span><a href="https://mgmacri.github.io/mealplan/">MealPlan →</a></span></header>
+  <header class="top"><span class="brand">LiftLog</span><span class="toplinks"><span id="account" aria-live="polite"></span><a href="https://mgmacri.github.io/mealplan/">MealPlan →</a></span></header>
   <main id="app"></main>
   <div id="timer" hidden role="timer">
     <span class="lbl">Rest</span><span class="t">0:00</span>
@@ -22,12 +22,6 @@
     <button data-a="tplus" aria-label="30 seconds more">+30</button>
     <button data-a="tskip">Skip</button>
   </div>
-  <nav aria-label="Main">
-    <button data-a="nav" data-v="today">Today</button>
-    <button data-a="nav" data-v="history">History</button>
-    <button data-a="nav" data-v="insights">Insights</button>
-    <button data-a="nav" data-v="settings">Settings</button>
-  </nav>
   <script type="module" src="app.js"></script>
 </body>
 </html>
