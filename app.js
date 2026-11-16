@@ -12,14 +12,17 @@ const GH = {
 };
 const SYNC_ENABLED = Boolean(GH.clientId && GH.workerUrl);
 
-const LS_KEY = 'liftlog.v2';
+const LS_KEY = 'liftlog.v3';
+const LEGACY_KEYS = ['liftlog.v2']; // old program + data, wiped on boot
+const SEED_PREFIX = 'v3';
+const OLD_SEED_IDS = ['seed-0', 'seed-1', 'seed-2', 'seed-3', 'seed-4']; // tombstoned so sync never resurrects them
 const TOKEN_KEY = 'liftlog.gh.token';
 const USER_KEY = 'liftlog.gh.user';
 const GIST_KEY = 'liftlog.gh.gist';
 const STATE_KEY = 'liftlog.oauth.state';
 const GIST_FILE = 'liftlog-data.json';
 const GIST_DESC = 'LiftLog workout data';
-const REST = 120; // rest-timer seconds (fixed; starts when you complete a set)
+const REST = 120; // default rest-timer seconds; per-exercise `rest` overrides
 const MODES = ['straight', 'ramp', 'pyramid'];
 const MODE_LABEL = { straight: 'Straight', ramp: 'Ramp (down)', pyramid: 'Pyramid' };
 
@@ -56,23 +59,24 @@ function regen(ex, n = ex.sets.length) {
   ex.sets = genReps(ex.mode, ex.base, ex.step, n).map((t) => ({ target: t, reps: null }));
 }
 function makeExercise(s) {
-  const ex = { id: uid(), name: s.name || '', mode: MODES.includes(s.mode) ? s.mode : 'straight', base: s.reps ?? 10, step: s.step ?? 2, weight: s.weight ?? null, sets: [] };
+  const ex = { id: uid(), name: s.name || '', mode: MODES.includes(s.mode) ? s.mode : 'straight', base: s.reps ?? 10, step: s.step ?? 2, weight: s.weight ?? null, note: s.note || '', rest: s.rest ?? REST, sets: [] };
   regen(ex, s.sets ?? 3);
   return ex;
 }
 // Seed workouts use stable ids so sync can dedupe/merge them across devices.
 function seedWorkouts() {
-  return SEED.map((w, i) => ({ id: `seed-${i}`, name: w.name, updatedAt: 0, exercises: w.exercises.map(makeExercise) }));
+  return SEED.map((w, i) => ({ id: `${SEED_PREFIX}-${i}`, name: w.name, updatedAt: 0, exercises: w.exercises.map(makeExercise) }));
 }
 
 /* ---------- state ---------- */
 function fixWorkout(w) { return { updatedAt: 0, exercises: [], ...w }; }
 function load() {
+  for (const k of LEGACY_KEYS) { try { localStorage.removeItem(k); } catch { /* */ } }
   const s = readLS();
   if (s && s.version === 2 && Array.isArray(s.workouts)) {
     return { version: 2, updatedAt: s.updatedAt || 0, workouts: s.workouts.map(fixWorkout), deleted: s.deleted || [], view: s.view || 'list', activeId: s.activeId || null };
   }
-  return { version: 2, updatedAt: 0, workouts: seedWorkouts(), deleted: [], view: 'list', activeId: null };
+  return { version: 2, updatedAt: 0, workouts: seedWorkouts(), deleted: [...OLD_SEED_IDS], view: 'list', activeId: null };
 }
 let state = load();
 const active = () => state.workouts.find((w) => w.id === state.activeId) || null;
@@ -308,7 +312,7 @@ function runView() {
   if (!w.exercises.length) html += card('<p class="muted">No exercises yet. Tap Edit to add some.</p>');
   html += w.exercises.map((ex, i) => card(`
     <header class="exhead">
-      <div><h3>${esc(ex.name || 'Exercise')}</h3><p class="muted">${esc(repsSummary(ex))} reps${ex.mode !== 'straight' ? ` · ${MODE_LABEL[ex.mode].toLowerCase()}` : ''}</p></div>
+      <div><h3>${esc(ex.name || 'Exercise')}</h3><p class="muted">${esc(repsSummary(ex))} reps${ex.mode !== 'straight' ? ` · ${MODE_LABEL[ex.mode].toLowerCase()}` : ''}${ex.note ? ` · ${esc(ex.note)}` : ''}</p></div>
       <button class="wt" data-a="weight" data-i="${i}" aria-label="Edit weight for ${esc(ex.name)}">${ex.weight == null ? 'Set weight' : `${ex.weight} lb`}</button>
     </header>
     <div class="sets">${ex.sets.map((_, j) => setButton(ex, i, j)).join('')}</div>`, 'ex')).join('');
@@ -326,7 +330,9 @@ function editExercise(ex, i) {
       <label>${baseLabel}<input type="number" inputmode="numeric" min="1" data-c="exBase" data-i="${i}" value="${ex.base}"></label>
       ${ex.mode === 'straight' ? '' : `<label>Step<input type="number" inputmode="numeric" min="0" data-c="exStep" data-i="${i}" value="${ex.step}"></label>`}
       <label>Weight (lb)<input type="number" inputmode="decimal" min="0" data-c="exWeight" data-i="${i}" value="${ex.weight ?? ''}" placeholder="—"></label>
+      <label>Rest (s)<input type="number" inputmode="numeric" min="0" data-c="exRest" data-i="${i}" value="${ex.rest ?? REST}"></label>
     </div>
+    <label>Note<input data-c="exNote" data-i="${i}" value="${esc(ex.note || '')}" placeholder="Rep range, cues"></label>
     <div class="targets"><span class="lbl">Reps per set — tap any to override</span>
       <div class="tgtrow">${ex.sets.map((s, j) => `<button class="tgt" data-a="editTarget" data-i="${i}" data-j="${j}" aria-label="Set ${j + 1} reps, ${s.target}">${s.target}</button>`).join('')}</div>
     </div>
@@ -364,7 +370,7 @@ function tapSet(i, j) {
   const ex = w.exercises[i]; const s = ex.sets[j];
   const was = s.reps;
   s.reps = s.reps == null ? s.target : s.reps > 0 ? s.reps - 1 : null;
-  if (was == null && s.reps != null) startTimer();
+  if (was == null && s.reps != null) startTimer(Number.isFinite(ex.rest) ? ex.rest : REST);
   touch(w); save(); render();
 }
 function zeroSet(i, j) {
@@ -447,6 +453,8 @@ document.addEventListener('change', (e) => {
   if (!w || !w.exercises[i]) return;
   const ex = w.exercises[i];
   if (c === 'exName') { ex.name = v; touch(w); save(); return; }
+  if (c === 'exNote') { ex.note = v; touch(w); save(); return; }
+  if (c === 'exRest') { ex.rest = clamp(Math.round(Number(v)) || 0, 0, 900); touch(w); save(); return; }
   if (c === 'exMode') { ex.mode = MODES.includes(v) ? v : 'straight'; regen(ex); touch(w); save(); render(); return; }
   if (c === 'exBase') { ex.base = clamp(Math.round(Number(v)) || 1, 1, 999); regen(ex); touch(w); save(); render(); return; }
   if (c === 'exStep') { ex.step = clamp(Math.round(Number(v)) || 0, 0, 99); regen(ex); touch(w); save(); render(); return; }
